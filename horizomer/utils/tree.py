@@ -279,6 +279,45 @@ def root_above(node, name=None):
     return res
 
 
+def root_by_outgroup(tree, outgroup):
+    """Root a tree with a given set of taxa as outgroup.
+
+    Parameters
+    ----------
+    tree : skbio.TreeNode
+        tree to root
+    outgroup : list of str
+        list of taxa to be set as outgroup
+
+    Returns
+    -------
+    skbio.TreeNode
+        resulting rooted tree
+    """
+    if not set(outgroup) < set([x.name for x in tree.tips()]):
+        raise ValueError('Outgroup is not a subset of tree tips.')
+
+    # create new tree
+    res = tree.copy()
+
+    # locate the lowest common ancestor (LCA) of outgroup in the target tree
+    lca = res.lca(outgroup)
+
+    # if LCA is root rather than derived (i.e., outgroup is split across basal
+    # clades), swap the tree and locate LCA again
+    if lca is res:
+        for tip in tree.tips():
+            if tip.name not in outgroup:
+                res = root_above(tip)
+                break
+        lca = res.lca(outgroup)
+        if lca is res:
+            raise ValueError('Outgroup is not monophyletic in the tree.')
+
+    # re-root the target tree between LCA of outgroup and LCA of ingroup
+    return root_above(lca)
+
+
 def _exact_compare(tree1, tree2):
     """Simultaneously compares the name, length, and support of each node from
     two trees.

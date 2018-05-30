@@ -18,7 +18,7 @@ from horizomer.utils.tree import (
     support, unpack, has_duplicates, compare_topology, intersect_trees,
     unpack_by_func, read_taxdump, build_taxdump_tree, order_nodes,
     is_ordered, cladistic, _compare_length, compare_branch_lengths,
-    assign_supports, walk_copy, root_above, _exact_compare)
+    assign_supports, walk_copy, root_above, _exact_compare, root_by_outgroup)
 
 
 class TreeTests(TestCase):
@@ -571,6 +571,22 @@ class TreeTests(TestCase):
         assign_supports(exp)
         self.assertTrue(_exact_compare(exp, tree3_ae))
 
+        # test support after reroot
+        tree4 = TreeNode.read(['(((a:1.0,b:0.8)95:2.4,(d:0.8,e:0.6)100:1.2)'
+                               '75:0.4,(h:0.5,i:0.7)98:1.8)75;'])
+        assign_supports(tree4)
+        exp = TreeNode.read(['((d:0.8,e:0.6)100:0.6,((a:1.0,b:0.8)95:2.4,'
+                             '(h:0.5,i:0.7)98:2.2)100:0.6);'])
+        assign_supports(exp)
+        tree4_d = root_above(tree4.find('d').parent)
+        self.assertTrue(_exact_compare(exp, tree4_d))
+
+        tree4_a = root_above(tree4.find('a').parent)
+        exp = TreeNode.read(['((a:1.0,b:0.8)95:1.2,((d:0.8,e:0.6)100:1.2,'
+                             '(h:0.5,i:0.7)98:2.2)95:1.2);'])
+        assign_supports(exp)
+        self.assertTrue(_exact_compare(exp, tree4_a))
+
     def test_exact_compare(self):
         # test name
         tree0 = TreeNode.read(['((e,d)f,(c,(a,b)));'])
@@ -594,6 +610,27 @@ class TreeTests(TestCase):
         self.assertFalse(_exact_compare(tree4, tree5))
         assign_supports(tree5)
         self.assertFalse(_exact_compare(tree4, tree5))
+
+    def test_root_by_outgroup(self):
+        tree1 = TreeNode.read(['(((a:1.0,b:0.8)c:2.4,(d:0.8,e:0.6)f:1.2)g:0.4,'
+                               '(h:0.5,i:0.7)j:1.8)k;'])
+        msg = 'Outgroup is not a subset of tree tips.'
+        with self.assertRaisesRegex(ValueError, msg):
+            root_by_outgroup(tree1, ['a', 'b', 'c', 'd', 'e', 'h', 'i'])
+
+        assign_supports(tree1)
+
+        tree2 = root_by_outgroup(tree1, ['a', 'b'])
+        exp = TreeNode.read(['((a:1.0,b:0.8)c:1.2,((d:0.8,e:0.6)f:1.2,(h:0.5,'
+                             'i:0.7)j:2.2)g:1.2);'])
+        assign_supports(exp)
+        self.assertTrue(_exact_compare(exp, tree2))
+
+        tree3 = root_by_outgroup(tree1, ['a', 'b', 'h'])
+        exp = TreeNode.read(['(((a:1.0,b:0.8)c:2.4,(h:0.5,i:0.7)j:2.2)g:0.6,'
+                             '(e:0.6,d:0.8)f:0.6);'])
+        assign_supports(exp)
+        self.assertTrue(_exact_compare(exp, tree3))
 
 
 if __name__ == '__main__':
